@@ -25,5 +25,5 @@ vi manifests/php-service/deployment.yaml
 ```
 4. Запуск Ansible
 ```
-ansible-playbook -i inventory/k3s_ha.yml playbooks/k3s_ha_cluster.yml -u vagrant --become-user root
+ansible-playbook -i inventory/inventory.yml playbooks/deploy_php_service.yaml -u vagrant --become-user root
 ```
