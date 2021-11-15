@@ -1,0 +1,55 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: php-service
+  namespace: php-service
+  labels:
+    app: php-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: php-service
+  template:
+    metadata:
+      labels:
+        app: php-service
+    spec:
+      containers:
+        - name: front
+          image: alexeyp/nginx:1.0.0
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          ports:
+            - containerPort: 8888
+          livenessProbe:
+            httpGet:
+              path: /index.php
+              port: 8888
+            initialDelaySeconds: 15
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /index.php
+              port: 8888
+            initialDelaySeconds: 15
+            periodSeconds: 5
+        - name: php-back
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "600m"
+          image: alexeyp/php-back:1.0.0
+          ports:
+            - containerPort: 8080

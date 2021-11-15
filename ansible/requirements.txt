@@ -1,0 +1,13 @@
+ansible==2.10.7
+jinja2==2.11.1
+netaddr==0.7.19
+pbr==5.4.4
+hvac==0.10.0
+jmespath==0.9.5
+kafka-python==1.4.4
+kazoo==2.6.1
+pure-sasl==0.5.1
+ruamel.yaml==0.16.10
+openshift>=0.6
+PyYAML>=3.11
+kubernetes

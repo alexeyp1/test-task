@@ -1,0 +1,21 @@
+---
+k3s_state: installed
+# Air-gap installation
+k3s_air_gap_installation: false
+# It is a relative path from play dir
+k3s_air_gap_files_dest_dir: /tmp/k3s-airgap/
+k3s_air_gap_files_src_dir: "{{ playbook_dir }}/files/extra-images/"
+k3s_release_version: v1.20.5+k3s1
+k3s_server:
+  cluster-cidr: "10.42.0.0/16"
+  kube-controller-manager-arg:
+    - "pod-eviction-timeout=2m"
+    - "node-monitor-grace-period=30s"
+  node-label:
+    - "NodeTier=development"
+    - "NodeLocation=eu-west-2a"
+  https-listen-port: 6443
+  disable:
+    - coredns
+    - traefik
+    - servicelb

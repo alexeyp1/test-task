@@ -1,0 +1,70 @@
+---
+- name: K3s cluster
+  hosts: k3s_cluster_ha
+  become: true
+  vars:
+    k3s_become_for_all: true
+    k3s_etcd_datastore: true
+  roles:
+  - role: k3s
+  post_tasks:
+  - block:
+    - name: Install pip 
+      apt:
+        name: pip
+        update_cache: yes
+    - name: Install requirements
+      pip:
+        name: kubernetes
+    - name: Create namespace
+      community.kubernetes.k8s:
+        name: php-service
+        api_version: v1
+        kind: Namespace
+        state: present
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+    - name: Create php-service/deployment
+      community.kubernetes.k8s:
+        state: present
+        definition: "{{ lookup('file', '../manifests/php-service/deployment.yaml') | from_yaml }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+        force: true
+    - name: Create php-service/service
+      community.kubernetes.k8s:
+        state: present
+        definition: "{{ lookup('file', '../manifests/php-service/service.yaml') | from_yaml }}"
+        kubeconfig: /etc/rancher/k3s/k3s.yaml
+    run_once: true
+
+- name: Install haproxy
+  hosts: haproxy
+  become: true
+  tasks:
+    - name: Install haproxy
+      apt:
+        name: haproxy
+        update_cache: yes
+    - name: Copy configfile
+      copy: 
+        dest: /etc/haproxy/haproxy.cfg
+        content: "{{ haproxy_config }}"
+      register: haproxy_config_change
+    - name: Enable and start haproxy
+      service:
+        name: haproxy
+        enabled: yes
+        state: started
+    - name: Reload haproxy
+      service:
+        name: haproxy
+        state: reloaded
+      when: haproxy_config_change.changed
+    - name: Service check
+      become: false
+      uri:
+        url: "http://{{ ansible_host }}/index.php"
+      delegate_to: localhost
+      register: _result
+      until: _result.status == 200
+      retries: 20
+      delay: 5

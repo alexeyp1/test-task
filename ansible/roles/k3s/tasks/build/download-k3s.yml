@@ -1,0 +1,127 @@
+---
+
+- name: Ensure target host architecture information is set as a fact
+  ansible.builtin.set_fact:
+    k3s_arch: "{{ k3s_arch_lookup[ansible_architecture].arch }}"
+    k3s_arch_suffix: "{{ k3s_arch_lookup[ansible_architecture].suffix }}"
+  check_mode: false
+
+- name: Ensure URLs are set as facts for downloading binaries
+  ansible.builtin.set_fact:
+    k3s_binary_url: "{{ k3s_github_download_url }}/{{ k3s_release_version }}/k3s{{ k3s_arch_suffix }}"
+    k3s_hash_url: "{{ k3s_github_download_url }}/{{ k3s_release_version }}/sha256sum-{{ k3s_arch }}.txt"
+  check_mode: false
+
+- block:
+  - name: Rewrite urls for airgap installation (air-gap)
+    ansible.builtin.set_fact:
+      k3s_binary_url: "{{ k3s_binary_url | replace('https://', '') }}"
+      k3s_hash_url: "{{ k3s_hash_url | replace('https://', '') }}"
+      k3s_air_gap_images: "{{ k3s_github_download_url | replace('https://', '') }}/{{ k3s_release_version }}/k3s-airgap-images-{{ k3s_arch }}.tar"
+    check_mode: false
+  - name: Create directories in dest
+    ansible.builtin.file:
+      path: "{{ k3s_air_gap_files_dest_dir}}/{{ item | dirname }}"
+      state: directory
+      mode: '0755'
+    with_items:
+      - "{{ k3s_binary_url }}"
+      - "{{ k3s_hash_url }}"
+      - "{{ k3s_air_gap_images }}"
+  - name: Copy files from local host to remote
+    ansible.builtin.copy:
+      src: "{{ k3s_air_gap_files_src_dir }}{{ item }}"
+      dest: "{{ k3s_air_gap_files_dest_dir }}/{{ item }}"
+    with_items:
+      - "{{ k3s_binary_url }}"
+      - "{{ k3s_hash_url }}"
+      - "{{ k3s_air_gap_images }}"
+  when:
+    - k3s_air_gap_installation
+
+- name: Override k3s_binary_url and k3s_hash_url facts for testing specific commit
+  ansible.builtin.set_fact:
+    k3s_binary_url: "https://storage.googleapis.com/k3s-ci-builds/k3s{{ k3s_arch_suffix }}-{{ k3s_release_version }}"
+    k3s_hash_url: "https://storage.googleapis.com/k3s-ci-builds/k3s{{ k3s_arch_suffix }}-{{ k3s_release_version }}.sha256sum"
+  when:
+    - k3s_release_version | regex_search("^[a-z0-9]{40}$") and not k3s_air_gap_installation
+  check_mode: false
+
+- name: Ensure the k3s hashsum is downloaded
+  ansible.builtin.uri:
+    url: "{{ k3s_hash_url }}"
+    return_content: true
+  register: k3s_hash_sum_raw
+  check_mode: false
+  when:
+    - not k3s_air_gap_installation
+
+- block:
+  - name: Ensure the k3s hashsum is downloaded (air-gap)
+    ansible.builtin.slurp:
+      src: "{{ k3s_air_gap_files_dest_dir }}/{{ k3s_hash_url }}"
+    register: k3s_hash_sum_raw_air_gap
+    check_mode: false
+  - set_fact:
+      k3s_hash_sum_raw: "{{ k3s_hash_sum_raw_air_gap | combine( { 'content': k3s_hash_sum_raw_air_gap['content'] | b64decode } )}}"
+  when:
+    - k3s_air_gap_installation
+
+- name: Ensure sha256sum is set from hashsum variable
+  ansible.builtin.set_fact:
+    k3s_hash_sum: "{{ (k3s_hash_sum_raw.content.split('\n') |
+      select('search', 'k3s' + k3s_arch_suffix) |
+      reject('search', 'images') |
+      first).split() | first }}"
+  changed_when: false
+  check_mode: false
+
+- name: Ensure sha256sum is set from hashsum variable (air-gap)
+  ansible.builtin.set_fact:
+    k3s_air_gap_files_hash_sum: "{{ (k3s_hash_sum_raw.content.split('\n') |
+      select('search', 'k3s-airgap-images-' + k3s_arch + '.tar') |
+      first).split() | first }}"
+  changed_when: false
+  check_mode: false
+  when:
+    - k3s_air_gap_installation
+
+- name: Ensure installation directory exists
+  ansible.builtin.file:
+    path: "{{ k3s_install_dir }}"
+    state: directory
+    mode: 0755
+
+- name: Ensure k3s binary is downloaded
+  ansible.builtin.get_url:
+    url: "{{ k3s_binary_url }}"
+    dest: "{{ k3s_install_dir }}/k3s-{{ k3s_release_version }}"
+    checksum: "sha256:{{ k3s_hash_sum }}"
+    mode: 0755
+  become: "{{ k3s_become_for_install_dir | ternary(true, false, k3s_become_for_all)  }}"
+  when:
+    - not k3s_air_gap_installation
+
+- block:
+  - name: Ensure {{ k3s_agent_images_dir }} exists
+    ansible.builtin.file:
+      path: "{{ k3s_agent_images_dir }}"
+      state: directory
+      mode: 0755
+    become: "{{ k3s_become_for_directory_creation | ternary(true, false, k3s_become_for_all) }}"
+  - name: Ensure k3s binary is downloaded (air-gap)
+    ansible.builtin.get_url:
+      url: "file://{{ k3s_air_gap_files_dest_dir }}/{{ k3s_binary_url }}"
+      dest: "{{ k3s_install_dir }}/k3s-{{ k3s_release_version }}"
+      checksum: "sha256:{{ k3s_hash_sum }}"
+      mode: 0755
+    become: "{{ k3s_become_for_install_dir | ternary(true, false, k3s_become_for_all)  }}"
+  - name: Ensure k3s images are downloaded (air-gap)
+    ansible.builtin.get_url:
+      url: "file://{{ k3s_air_gap_files_dest_dir }}/{{ k3s_air_gap_images }}"
+      dest: "{{ k3s_agent_images_dir }}"
+      checksum: "sha256:{{ k3s_air_gap_files_hash_sum }}"
+      mode: 0755
+    become: "{{ k3s_become_for_install_dir | ternary(true, false, k3s_become_for_all)  }}"
+  when:
+    - k3s_air_gap_installation

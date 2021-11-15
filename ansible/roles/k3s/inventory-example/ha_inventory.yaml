@@ -1,0 +1,34 @@
+k3s_cluster_ha:
+  hosts:
+    kube-0:
+      ansible_python_interpreter: /usr/bin/python3
+      k3s_control_node: true
+      ansible_ssh_password: ***
+      ansible_become_password: ***
+      ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+      node-label:
+      - "NodeTier=master1"
+    kube-1:
+      ansible_python_interpreter: /usr/bin/python3
+      k3s_control_node: true
+      ansible_password: ***
+      ansible_become_password: ***
+      ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+      node-label:
+      - "NodeTier=master2"
+    kube-2:
+      ansible_python_interpreter: /usr/bin/python3
+      k3s_control_node: true
+      ansible_ssh_password: ***
+      ansible_become_password: ***
+      ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+      node-label:
+      - "NodeTier=master3"
+    kube-3:
+      ansible_python_interpreter: /usr/bin/python3
+      k3s_control_node: false
+      ansible_ssh_password: ***
+      ansible_become_password: ***
+      ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+      node-label:
+      - "NodeTier=worker1"

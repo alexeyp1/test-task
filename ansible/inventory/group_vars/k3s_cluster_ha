@@ -1,0 +1,17 @@
+---
+k3s_state: installed
+k3s_air_gap_installation: false
+# files are located in roles/k3s/templates
+k3s_server_manifests_templates: []
+
+k3s_release_version: v1.20.7+k3s1
+
+k3s_server:
+  cluster-cidr: "172.30.0.0/16"
+  kube-controller-manager-arg:
+    - "pod-eviction-timeout=2m"
+    - "node-monitor-grace-period=30s"
+  https-listen-port: 6443
+  flannel-backend: 'host-gw'
+  disable:
+    - servicelb
